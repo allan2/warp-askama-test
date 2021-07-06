@@ -8,25 +8,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Post::new(String::from("b"), PostTemplate::new("goodbye")),
     ]);
     let with_posts = warp::any().map(move || posts.clone());
-    // ==== Working - we don't want this fallback though e.g. on /c ==== //
-    let routes = warp::path!(String)
-        .and(with_posts)
-        .map(|id, posts: std::sync::Arc<Vec<Post>>| {
-            match posts.iter().find(|post| post.slug == id) {
-                Some(post) => post.template,
-                None => PostTemplate::new("fallback"),
-            }
-        });
-    // ==== Not working - trying to set up reject when post is not found ==== //
-    // let routes = warp::path!(String)
-    //     .and(with_posts)
-    //     .map(|id, posts: Arc<Vec<Post>>| posts.iter().find(|post| post.slug == id))
-    //     .and_then(|post: Option<&Post>| async move {
-    //         match post {
-    //             Some(v) => Ok(v.template),
-    //             None => Err(warp::reject::not_found()),
-    //         }
-    //     });
+    let routes =
+        warp::path!(String)
+            .and(with_posts)
+            .and_then(|id, posts: Arc<Vec<Post>>| async move {
+                match posts.iter().find(|post| post.slug == id) {
+                    Some(v) => Ok(v.template),
+                    None => Err(warp::reject::not_found()),
+                }
+            });
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
     Ok(())
 }
